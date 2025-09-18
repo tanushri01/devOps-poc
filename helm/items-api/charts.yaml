@@ -1,0 +1,4 @@
+apiVersion: v2
+name: items-api
+version: 0.1.0
+description: Items API

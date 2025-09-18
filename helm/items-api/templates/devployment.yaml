@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: items-api
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: items-api
+  template:
+    metadata:
+      labels:
+        app: items-api
+    spec:
+      containers:
+        - name: items-api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          env:
+            - name: DATABASE_URL
+              value: "{{ .Values.env.DATABASE_URL }}"
+          ports:
+            - containerPort: 8000
+          livenessProbe:
+            httpGet:
+              path: /items
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /items
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5

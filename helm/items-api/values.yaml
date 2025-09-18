@@ -1,0 +1,16 @@
+replicaCount: 2
+
+image:
+  repository: <DOCKERHUB_USERNAME>/items-api
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 8000
+
+env:
+  DATABASE_URL: "postgresql://items_user:SuperSecret123@<RDS_ENDPOINT>:5432/itemsdb"
+
+resources: {}
