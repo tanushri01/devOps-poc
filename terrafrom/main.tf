@@ -48,8 +48,8 @@ module "eks" {
 
 resource "aws_db_instance" "itemsdb" {
   allocated_storage    = 20
-  engine               = "postgres"
-  engine_version       = "15.3"
+  engine               = "mysql"
+  engine_version       = "8.0"
   instance_class       = "db.t3.micro"
   name                 = var.db_name
   username             = var.db_user

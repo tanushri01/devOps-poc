@@ -1,24 +1,31 @@
 version: "3.8"
 services:
   db:
-    image: postgres:15
+    image: mysql:8
     environment:
-      POSTGRES_USER: dev
-      POSTGRES_PASSWORD: dev
-      POSTGRES_DB: itemsdb
+      MYSQL_ROOT_PASSWORD: dev
+      MYSQL_USER: dev
+      MYSQL_PASSWORD: dev
+      MYSQL_DATABASE: itemsdb
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      retries: 10
+      start_period: 20s
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - mysqldata:/var/lib/mysql
     ports:
-      - "5432:5432"
+      - "3306:3306"
 
   web:
     build: .
     environment:
-      DATABASE_URL: postgresql://dev:dev@db:5432/itemsdb
+      DATABASE_URL: mysql+pymysql://dev:dev@db:3306/itemsdb
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
 
 volumes:
-  pgdata:
+  mysqldata:

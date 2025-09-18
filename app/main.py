@@ -1,21 +1,23 @@
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from sqlalchemy import create_engine, Column, Integer, String, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
-from prometheus_client import Counter, Summary, generate_latest, CONTENT_TYPE_LATEST
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://dev:dev@db:5432/itemsdb")
+# ----------------------------
+# Database setup
+# ----------------------------
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")  # Change to MySQL if needed
 
-engine = create_engine(DATABASE_URL, echo=False, future=True)
-SessionLocal = sessionmaker(bind=engine)
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-REQUEST_TIME = Summary('request_processing_seconds', 'Time spent processing request')
-REQUEST_COUNT = Counter('app_requests_total', 'Total HTTP requests')
-
+# ----------------------------
+# Database model
+# ----------------------------
 class Item(Base):
     __tablename__ = "items"
     id = Column(Integer, primary_key=True, index=True)
@@ -24,67 +26,84 @@ class Item(Base):
 
 Base.metadata.create_all(bind=engine)
 
+# ----------------------------
+# Pydantic schemas
+# ----------------------------
 class ItemIn(BaseModel):
     name: str
-    description: str = None
+    description: Optional[str] = None
 
 class ItemOut(ItemIn):
     id: int
 
-app = FastAPI(title="Simple Items API")
+# ----------------------------
+# FastAPI app
+# ----------------------------
+app = FastAPI(title="CRUD API Example")
 
-@app.get("/metrics")
-def metrics():
-    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+# Dependency to get DB session
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
+# ----------------------------
+# CRUD Endpoints
+# ----------------------------
+
+# Create
 @app.post("/items", response_model=ItemOut)
-def create_item(payload: ItemIn):
-    db = SessionLocal()
-    item = Item(name=payload.name, description=payload.description)
-    db.add(item)
+def create_item(item: ItemIn):
+    db = next(get_db())
+    db_item = Item(name=item.name, description=item.description)
+    db.add(db_item)
     db.commit()
-    db.refresh(item)
-    db.close()
-    return ItemOut(id=item.id, name=item.name, description=item.description)
+    db.refresh(db_item)
+    return ItemOut(id=db_item.id, name=db_item.name, description=db_item.description)
 
+# Read all
 @app.get("/items", response_model=List[ItemOut])
-def list_items():
-    db = SessionLocal()
-    rows = db.query(Item).all()
-    db.close()
-    return [ItemOut(id=r.id, name=r.name, description=r.description) for r in rows]
+def read_items():
+    db = next(get_db())
+    items = db.query(Item).all()
+    return [ItemOut(id=i.id, name=i.name, description=i.description) for i in items]
 
+# Read one
 @app.get("/items/{item_id}", response_model=ItemOut)
-def get_item(item_id: int):
-    db = SessionLocal()
+def read_item(item_id: int):
+    db = next(get_db())
     item = db.query(Item).filter(Item.id == item_id).first()
-    db.close()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     return ItemOut(id=item.id, name=item.name, description=item.description)
 
+# Update
 @app.put("/items/{item_id}", response_model=ItemOut)
-def update_item(item_id: int, payload: ItemIn):
-    db = SessionLocal()
+def update_item(item_id: int, item_data: ItemIn):
+    db = next(get_db())
     item = db.query(Item).filter(Item.id == item_id).first()
     if not item:
-        db.close()
         raise HTTPException(status_code=404, detail="Item not found")
-    item.name = payload.name
-    item.description = payload.description
+    item.name = item_data.name
+    item.description = item_data.description
     db.commit()
     db.refresh(item)
-    db.close()
     return ItemOut(id=item.id, name=item.name, description=item.description)
 
-@app.delete("/items/{item_id}", status_code=204)
+# Delete
+@app.delete("/items/{item_id}")
 def delete_item(item_id: int):
-    db = SessionLocal()
+    db = next(get_db())
     item = db.query(Item).filter(Item.id == item_id).first()
     if not item:
-        db.close()
         raise HTTPException(status_code=404, detail="Item not found")
     db.delete(item)
     db.commit()
-    db.close()
-    return None
+    return {"detail": "Item deleted successfully"}
+
+# Root endpoint
+@app.get("/")
+def root():
+    return {"message": "CRUD API is running"}
