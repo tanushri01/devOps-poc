@@ -66,10 +66,10 @@ This runs Postgres + the FastAPI app locally.
 
 ```bash
 # Build and start containers
-docker-compose up --build
+sudo docker-compose up --build
 
 # In another terminal, check logs
-docker-compose logs -f web
+sudo docker-compose logs -f web
 
 # API endpoints
 # Create item (POST)
